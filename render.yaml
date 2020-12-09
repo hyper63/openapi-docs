@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: hyper63-openapi-docs
+    env: static
+    branch: main
+    buildCommand: yarn && yarn build
+    staticPublishPath: public
+

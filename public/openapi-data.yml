@@ -1,0 +1,554 @@
+openapi: 3.0.3
+info:
+  title: hyper63/data
+  description: >
+    ![logo](https://hyper63.com/favicon-96x96.png)
+
+    # Welcome to hyper63/data
+
+    A composable service-framework
+
+    hyper63 provides api abstractions to some of the core application building blocks. Using the ports and 
+    components. This openapi specification outlines the functionality of the data port.
+               
+
+    [source code](https://github.com/hyper63/hyper63)
+
+  contact:
+    url: "https://hyper63.com"
+    email: tom@hyper63.com
+    name: hyper63
+  license:
+    name: Apache License 2.0
+    url: "https://github.com/hyper63/hyper63/blob/main/LICENSE"
+  version: "1.0"
+  termsOfService: "https://hyper63.com/termsofuse.text"
+servers:
+  - description: Development Server
+    url: "http://localhost:6363"
+  - description: IgniteBoard Server
+    url: "https://api.ignite-board.com"
+paths:
+  /:
+    get:
+      description: >
+        # HealthCheck
+
+        This endpoint returns 200 if the system is 
+        healthy and returns 500 if all of the 
+        pings for each service did not come back successful
+
+      responses:
+        "200":
+          description: successful health response
+          content:
+            application/json:
+              schema:
+                properties:
+                  name:
+                    description: name of service
+                    type: string
+        "500":
+          description: one or more of the services are not responding
+
+  /data:
+    get:
+      description: >
+        # default data port endpoint
+
+        This endpoint provides the current data adapter 
+        name and version information.
+
+      tags: [data]
+      responses:
+        "200":
+          description: data module info
+          content:
+            application/json:
+              schema:
+                properties:
+                  name:
+                    description: module name
+                    type: string
+        "500":
+          description: service not available
+          content:
+            application/json:
+              schema:
+                properties:
+                  ok:
+                    type: boolean
+  /data/{name}:
+    get:
+      description: >
+        # List Documents
+
+        Get all documents in the database using optional filter parameters
+
+        * __keys__ - a comma separated list of document ids
+
+        * __limit__ - the amount of documents to return    
+
+        * __startkey__ - a partial id to start matching keys  
+
+        * __endkey__ - a partial id to end matching keys    
+
+        ## Use Cases
+
+        ### Getting document details from a cache
+
+        Storing keys with specific
+        data in a cache can create fast queries, often you will want to 
+        retrieve all the document details of those keys in a single request
+        this endpoint can be used with the keys query param to get a set
+        of documents based on their key/id.
+
+        ### Pagination
+
+        Using startkey and limit, you can create a simple pagination workflow
+        getting the next x documents.
+
+        ### Autocomplete with structured keys
+
+        Using structured or smart keys, you can turn the key into 
+        a dynamic index and leverage the startkey and endkey as a
+        easy to use autocomplete feature for a specific dataset.
+
+      tags: [data]
+      parameters:
+        - name: name
+          in: path
+          description: list documents
+          required: true
+          schema:
+            type: string
+        - name: keys
+          in: query
+          description: get documens by keys
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: number of documents to return
+          required: false
+          schema:
+            type: string
+        - name: startkey
+          in: query
+          description: startkey of range of docs
+          required: false
+          schema:
+            type: string
+        - name: endkey
+          in: query
+          description: endkey of range of docs
+          required: false
+          schema:
+            type: string
+        - name: descending
+          in: query
+          description: sort keys in descending order
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: success
+          content:
+            application/json:
+              schema:
+                properties:
+                  ok:
+                    type: boolean
+                  docs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                      additionalProperties: true
+        "500":
+          description: error occured
+          content:
+            application/json:
+              schema:
+                properties:
+                  ok:
+                    type: boolean
+                  msg:
+                    type: string
+
+    put:
+      description: >
+        # Create DataStore
+
+        Create a datastore to contain json documents, the data
+        store is schemaless, so it can contain multiple documents
+        of different shape and type, it is up to the developer
+        to manange the schema and rules of the data at the business
+        logic tier.
+
+        The datastore {name} must be composed by the following rules:
+
+        * __name__ must begin with a lowercase letter (a-z)
+
+        * Lowercase characters (a-z)
+
+        * Digits (0-9)
+
+        * Any of the characters `_` `$` `+` `-`
+
+        > Regular Expression: `^[a-z][a-z0-9_$+/-]*$`
+
+      tags: [data]
+      parameters:
+        - name: name
+          in: path
+          description: name of database
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: successfully created database
+          content:
+            application/json:
+              schema:
+                properties:
+                  ok:
+                    type: boolean
+        "500":
+          description: error
+          content:
+            application/json:
+              schema:
+                properties:
+                  ok:
+                    type: boolean
+                  msg:
+                    type: string
+    delete:
+      description: >
+        # Destroy Datastore
+
+        Permenately Delete the database and all the content in the
+        database.
+
+        > WARNING: Use with caution!
+      tags: [data]
+      parameters:
+        - name: name
+          in: path
+          description: name of database
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: successfully removed database
+          content:
+            application/json:
+              schema:
+                properties:
+                  ok:
+                    type: boolean
+        "500":
+          description: could not remove database
+          content:
+            application/json:
+              schema:
+                properties:
+                  ok:
+                    type: boolean
+    post:
+      description: >
+        # Create Document
+
+        This command inserts a json document into the data store
+
+        ### RECOMMENDATIONS:
+
+        * Create your own unique `id` property, either by concation of unique data elements or with ISO date timestmp and prefex or suffix
+
+        * Use the `type` property to classify your document
+
+        * Document the `user` and `date` the record is being created for audit purposes
+
+      tags: [data]
+      parameters:
+        - name: name
+          in: path
+          description: name of database
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: json body that requires submitting
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                type:
+                  type: string
+      responses:
+        "201":
+          description: successfully created document
+          content:
+            application/json:
+              schema:
+                properties:
+                  ok:
+                    type: boolean
+                  id:
+                    type: string
+        "500":
+          description: server error
+          content:
+            application/json:
+              schema:
+                properties:
+                  ok:
+                    type: boolean
+                  msg:
+                    type: string
+  /data/{name}/_index:
+    post:
+      description: >
+        # Create Query Index
+
+        In order to create fast and performant queries, it is recommended
+        to create an index.
+
+        ## Basic Index Attribures
+
+        * __name__ - the name of your index, this name will be used in the `_query` command to identify the index you want to use.
+
+        * __fields__ - an array of fields that you want to index, order of the fields is very important for the query. For example, if you are indexing `['type', 'name']` then when you query the database, you want to specify type first then name.
+
+      tags: [data]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: name of database
+          schema:
+            type: string
+      requestBody:
+        description: index document
+        required: true
+        content:
+          application/json:
+            schema:
+              properties:
+                name:
+                  type: string
+                fields:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "201":
+          description: success
+  /data/{name}/_query:
+    post:
+      description: >
+        # Query Database
+
+        hyper63 uses a declarative JSON querying syntax. 
+
+        ``` json
+        "query" {
+          "selector": {
+            "type": "movie",
+            "year": { "$gte": "2000"}
+          },
+          "fields": "title",
+          "sort": [{"year": "asc"}],
+          use_index: "idx-name"
+        }
+
+        ```
+
+        ## Basics
+
+        The selector object lets you specify one or more fields
+
+        You can create more complex selector expressions by combining operators. `$eq`, `$gt`, `$gte`, `$lt`, `$lte`, etc
+
+        > TODO: Create documentation for all allowed operators
+
+      tags: [data]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: name of database
+          schema:
+            type: string
+      requestBody:
+        description: json query document
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: successful result
+          content:
+            application/json:
+              schema:
+                properties:
+                  ok:
+                    type: boolean
+                  docs:
+                    type: array
+        "500":
+          description: error trying to run query
+          content:
+            application/json:
+              schema:
+                properties:
+                  ok:
+                    type: boolean
+                  msg:
+                    type: string
+
+  /data/{name}/{id}:
+    get:
+      description: >
+        # Get Document
+
+        To quickly return a single document, 
+        simply provide the name of the data store
+        and the document id.
+
+      tags: [data]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: database name
+          schema:
+            type: string
+        - name: id
+          in: path
+          description: document id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: get document
+          content:
+            application/json:
+              schema:
+                type: object
+        "500":
+          description: server error
+          content:
+            application/json:
+              schema:
+                properties:
+                  ok:
+                    type: boolean
+                  msg:
+                    type: string
+    put:
+      description: >
+        # Update Document
+
+        To update/modify the document, use this method
+        to put an entirely new document in the store with 
+        the specified id. Note this will replace the 
+        currently stored document.
+
+      tags: [data]
+      parameters:
+        - name: name
+          in: path
+          description: database name
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          description: document id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: json body that requires submitting
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: update document
+          content:
+            application/json:
+              schema:
+                properties:
+                  ok:
+                    type: boolean
+                  id:
+                    type: string
+        "500":
+          description: error updating document
+          content:
+            application/json:
+              schema:
+                properties:
+                  ok:
+                    type: boolean
+                  msg:
+                    type: string
+    delete:
+      description: >
+        # Delete document
+
+        Removes the specified document from the datastore.
+
+      tags: [data]
+      parameters:
+        - name: name
+          in: path
+          description: database name
+          required: true
+          schema:
+            type: string
+        - name: id
+          description: document id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: deleted document
+          content:
+            application/json:
+              schema:
+                properties:
+                  ok:
+                    type: boolean
+                  id:
+                    type: string
+        "500":
+          description: error trying to delete document
+          content:
+            application/json:
+              schema:
+                properties:
+                  ok:
+                    type: boolean
+                  id:
+                    type: string
